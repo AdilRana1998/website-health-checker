@@ -1,12 +1,16 @@
 const healthCheckServices = {};
-const { Strings, Logger } = require('../../utils')
+const { Strings, Logger } = require('../../utils');
 const { slack } = require('./../../utils/Webhook');
 const fetch = require('node-fetch');
 const https = require('https');
-const chalk = require("chalk"); 
-const fineMessage = "PRODUCTION SERVICE'S ARE WORKING FINE"
-const errorMessage = "PRODUCTION SERVICES ARE NOT RESPONDING"
+const chalk = require('chalk');
+const fs = require('fs');
+const sslChecker = require('ssl-checker');
+const db = require('../model');
+const { keys } = require('../../config');
 
+const fineMessage = "PRODUCTION SERVICE'S ARE WORKING FINE";
+const errorMessage = 'PRODUCTION SERVICES ARE NOT RESPONDING';
 
 healthCheckServices.postHealthCheck = async () => {
     try {
