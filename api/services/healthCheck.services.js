@@ -9,95 +9,73 @@ const sslChecker = require('ssl-checker');
 const db = require('../model');
 const { keys } = require('../../config');
 
+const {
+    websiteListQueries
+} = require('../queries');
+
 const fineMessage = "PRODUCTION SERVICE'S ARE WORKING FINE";
 const errorMessage = 'PRODUCTION SERVICES ARE NOT RESPONDING';
 
 healthCheckServices.postHealthCheck = async () => {
     try {
-        let record = {}
-        const options = {
-            key: keys.ssl.key ? fs.readFileSync(keys.ssl.key) : "",
-            cert: keys.ssl.cert ? fs.readFileSync(keys.ssl.cert) : "",
-            rejectUnauthorized: false
-        }
-        const httpsAgent = new https.Agent(options);
-        const checkFe = await fetch(process.env.URL_FRONTEND + 'login', { agent: httpsAgent });        
-        Logger.data.HealthCheck({ url: checkFe.url, status: checkFe.status, statusText: checkFe.statusText, methodName: "checkFe" }, "Check Front End URL");
-        const checkDB = await db.sequelize.authenticate().then(() => {
-            return {
-                status: 200,
-                message: "DB Connected Successfully"
+        const list = await websiteListQueries.getData()
+        if (list.length > 0) {
+            let record = {}
+            console.log("**************************************");
+            console.log("Job Started For Website's Health Check");
+            console.log("**************************************");
+            for (const element of list) {
+                const url = element.url;
+                try {
+                    const response = await fetch(url);
+                    console.log(fineMessage);
+                    Logger.data.HealthCheck(
+                        {
+                            url,
+                            status: response.status,
+                            statusText: response.statusText,
+                            methodName: "postHealthCheck"
+                        },
+                        "Find-Website-Status"
+                    );
+
+                } catch (err) {
+                    console.error(errorMessage)
+                    console.error(url)
+                    record = {
+                            website:url,
+                            status: 0,
+                            statusText: err.code || "UNREACHABLE",
+                            error: err.message,
+                            methodName: "postHealthCheck",
+                            message: Strings.ERROR.PRD_SERVICES_DOWN
+                        }
+                    Logger.data.HealthCheck(
+                        record,
+                        "Find-Website-Status"
+                    );
+                    slack.webhook(JSON.stringify(record));
+                }
             }
-        }).catch(e => {
-            return {
-                status: 400,
-                message: "DB Not Connected Successfully " + e.message
-            }
-        });
-        Logger.data.HealthCheck({ response: checkDB, methodName: "checkDB" }, "Check Database Connectivity");
-        const url = process.env.URL_FRONTEND.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        const sslStatus = await sslChecker(url, { method: 'GET' })
-            .then((cert) => {
-                return {
-                    status: cert.daysRemaining <= 2 ? 400 : 200,
-                    sslValid: cert.valid,
-                    sslDaysLeft: cert.daysRemaining <= 2 ? "Please renew the SSL Certificate only "+cert.daysRemaining +" day's left": cert.daysRemaining,
-                    sslExpiresOn: cert.validTo
-                };
-            })
-            .catch((error) => {
-                return {
-                    status: 400,
-                    sslValid: false,
-                    sslDaysLeft: 0,
-                    sslExpiresOn: "Could not retrieve SSL information",
-                    error: error.message
-                };
-            });
-        Logger.data.HealthCheck({ response: sslStatus, methodName: "sslStatus" }, "Check SSL Validity");
-        if (checkFe.status == '200' && checkDB.status == '200' && sslStatus.status == '200') {
+            console.log("************************************");
+            console.log("Job Ended For Website's Health Check");
+            console.log("************************************");
+
             return {
                 message: Strings.SUCCESS,
                 statusCode: 200,
-                obj: {
-                    "front-end": "UP",
-                    "back-end": "UP",
-                    "data-base": "UP",
-                    "SSL": "VALID",
-                    "license": "VALID"
-                }
+                obj: record
             }
+        } else {
+            return {
+                message: Strings.ROOM.EMPTY,
+                statusCode: 200,
+                obj: {}
+            };
         }
-        if (checkFe.status != '200') {
-            record['front-end'] = 'DOWN';
-        }
-        if (checkFe.status == '200') {
-            record['front-end'] = 'UP';
-        }
-        if (checkDB.status != '200') {
-            record['data-base'] = 'DOWN';
-        }
-        if (checkDB.status == '200') {
-            record['data-base'] = 'UP';
-        }
-        if (sslStatus.status != '200') {
-            // record['SSL'] = 'EXPIRED';
-            record['SSL'] = sslStatus.sslDaysLeft;
-        }
-        if (sslStatus.status == '200') {
-            record['SSL'] = 'VALID';
-        }
-
-        record['back-end'] = 'UP';
-        record['license'] = 'VALID';   //making it on default on command of yahya
-        return {
-            message: Strings.ERROR.PRD_SERVICES_DOWN,
-            statusCode: 400,
-            obj: record
-        }
-
     } catch (error) {
-        console.log("Error while health check of kolabrya production envirnoment", error);
+        console.log("Error while health check of production envirnoment", error);
+        slack.webhook(JSON.stringify(error));
         return {
             message: Strings.ERROR.SOME_THING_WENT_WRONG,
             statusCode: 400,

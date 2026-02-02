@@ -6,7 +6,7 @@ const {
 
 Controller.postHealthCheck = async (req, res, next) => {
     const result =  await postHealthCheck();
-    sendStatus.data.sortStatus(res, req, result.obj, result.message, "Kolabrya-Health-Check", result.statusCode);
+    sendStatus.data.sortStatus(res, req, result.obj, result.message, "Webistes-Health-Check", result.statusCode);
 }
 
 module.exports = Controller;

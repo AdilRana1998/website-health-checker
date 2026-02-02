@@ -15,7 +15,7 @@ module.exports.eventLoggerHealthCheck = function (eventName, data = 'No data pro
         let log;
         let dateTime = new Date().toString();
         log = dateTime + "----" + eventName + "----" + data + "\r\n";
-        let file_path = `../${"log/kolabrya-health-check"}/${formatDate()}.txt`;
+        let file_path = `../${"log/health-check"}/${formatDate()}.txt`;
         fileUtility.appendText(file_path, log);
     }
 }
